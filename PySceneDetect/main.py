@@ -4,9 +4,11 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
+from cnn import CNN
 from moviepy.editor import *
 
 import sys
+
 
 
 class MyApp(QWidget):
@@ -24,7 +26,7 @@ class MyApp(QWidget):
         self.split_bar = QProgressBar()
         self.highlight_bar = QProgressBar()
         self.button_start = QPushButton('Start', self)
-        self.button_cancel = QPushButton('Make HighLight', self)
+        self.button_cancel = QPushButton('cancel', self)
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.bar)
         self.layout.addWidget(self.button_start)
@@ -110,23 +112,37 @@ class SceneDetector(QObject):
         splitter.split_video_ffmpeg(video_paths, scene_list, file_path,
                                     video_name)
         list_train = []
-        list_dir = os.listdir(self.output_directory)
-        for item in list_dir:
-            # TODO: TRAIN, 진행 상황 출력
-
-            # ...
-        if len(list_train) != 0 :
+        msg = QMessageBox()
+        msg.setWindowTitle("Determinine Highlight.....")
+        msg.setText("Please wait....")
+        # TODO: TRAIN, 진행 상황 출력
+        cnn = CNN(self.output_directory)
+        train_dir = cnn.predict()
+        for key, values in train_dir.items():
+            print(values)
+            if values > 0.9:
+                list_train.append(key)
+        # ...
+        if len(list_train) == 0 :
             self.finished.emit()
-
+            return
+        print(list_train)
         list_clip = []
         for high_light in list_train:
-            clip = VideoFileClip(high_light)
-            list_clip.append(clip)
+            path = os.path.join(self.output_directory, high_light)
+            clip = VideoFileClip(path)
+            if clip.duration - 4.5 <= 0.0:
+                continue
+            subclip = clip.subclip(0, clip.duration-4.5)
+            list_clip.append(subclip)
+            
+        result_clip = concatenate_videoclips(list_clip)
 
-        result_clip = CompositeVideoClip(list_clip)
+        result_clip.write_videofile(os.path.join(self.output_directory, "High_Light.mp4"))
 
-        result_clip.write_videofile("High_Light_" + self.filename)
+        result_clip.close()
 
+        
         self.finished.emit()
 
 
